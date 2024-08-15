@@ -1,6 +1,6 @@
 
 from enum import Enum
-from scapy import IP, UDP, TCP, ICMP, DNS
+from scapy.all import UDP, TCP, ICMP, DNS
 
 class PacketType(Enum):
     TCP = 6
@@ -12,8 +12,14 @@ class PacketType(Enum):
 class Packet():
 
     def __init__(self, type: PacketType, packet) -> None:
+        ''' Initialize the packet object. '''
+
         self.type = type
-        pass
+
+        try:
+            self.packet = self.initialize_packet(packet)
+        except ValueError as e:
+            print(f"[ERROR] {e}")
 
     
     def initialize_packet(self, packet) -> None:
@@ -30,30 +36,27 @@ class Packet():
                 packet_info = self.initialize_icmp_packet(packet)
             case PacketType.DNS:
                 packet_info = self.initialize_dns_packet(packet)
+            case _:
+                raise ValueError("Invalid packet type.")
         
-        self.packet_info = packet_info
+        return packet_info
     
 
     def initialize_tcp_packet(self, packet) -> dict:
         ''' Initialize the TCP packet information. '''
 
         return {
-            "protocol": "TCP",
-            "src_port": packet[TCP].sport,
-            "dst_port": packet[TCP].dport,
-            "src_ip": packet[IP].src,
-            "dst_ip": packet[IP].dst,
+            "flags": packet[TCP].flags,
+            "seq": packet[TCP].seq,
+            "ack": packet[TCP].ack,
         }
     
     def initialize_udp_packet(self, packet) -> dict:
         ''' Initialize the UDP packet information. '''
 
         return {
-            "protocol": "UDP",
-            "src_port": packet[UDP].sport,
-            "dst_port": packet[UDP].dport,
-            "src_ip": packet[IP].src,
-            "dst_ip": packet[IP].dst,
+            "len": packet[UDP].len,
+            "chksum": packet[UDP].chksum,
         }
     
     
@@ -61,7 +64,9 @@ class Packet():
         ''' Initialize the ICMP packet information. '''
 
         return {
-            "protocol": "ICMP"
+            "type": packet[ICMP].type,
+            "code": packet[ICMP].code,
+            "chksum": packet[ICMP].chksum,
         }
     
 
@@ -69,6 +74,8 @@ class Packet():
         ''' Initialize the DNS packet information. '''
 
         return {
-            "protocol": "DNS"
+            "qr": packet[DNS].qr, # query (0) or response (1)
+            "opcode": packet[DNS].opcode, # type of query
+            "rcode": packet[DNS].rcode, # response code
         }
         
