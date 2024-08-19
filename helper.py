@@ -2,6 +2,8 @@
 from enum import Enum
 from scapy.all import UDP, TCP, ICMP, DNS
 
+
+# ----------------- Packet Classes ----------------- #
 class PacketType(Enum):
     TCP = 6
     UDP = 17
@@ -46,17 +48,21 @@ class Packet():
         ''' Initialize the TCP packet information. '''
 
         return {
-            "flags": packet[TCP].flags,
-            "seq": packet[TCP].seq,
-            "ack": packet[TCP].ack,
+            'sport': packet[TCP].sport,
+            'dport': packet[TCP].dport,
+            'flags': get_tcp_flags(packet[TCP].flags),
+            'seq': packet[TCP].seq,
+            'ack': packet[TCP].ack,
         }
     
     def initialize_udp_packet(self, packet) -> dict:
         ''' Initialize the UDP packet information. '''
 
         return {
-            "len": packet[UDP].len,
-            "chksum": packet[UDP].chksum,
+            'sport': packet[UDP].sport,
+            'dport': packet[UDP].dport,
+            'len': packet[UDP].len,
+            'chksum': packet[UDP].chksum,
         }
     
     
@@ -64,9 +70,9 @@ class Packet():
         ''' Initialize the ICMP packet information. '''
 
         return {
-            "type": packet[ICMP].type,
-            "code": packet[ICMP].code,
-            "chksum": packet[ICMP].chksum,
+            'type': packet[ICMP].type,
+            'code': packet[ICMP].code,
+            'chksum': packet[ICMP].chksum,
         }
     
 
@@ -74,8 +80,35 @@ class Packet():
         ''' Initialize the DNS packet information. '''
 
         return {
-            "qr": packet[DNS].qr, # query (0) or response (1)
-            "opcode": packet[DNS].opcode, # type of query
-            "rcode": packet[DNS].rcode, # response code
+            'qr': packet[DNS].qr, # query (0) or response (1)
+            'opcode': packet[DNS].opcode, # type of query
+            'rcode': packet[DNS].rcode, # response code
         }
-        
+
+
+# ----------------- Helper Functions ----------------- #
+
+def get_tcp_flags(flags: int) -> list:
+    ''' Get the TCP flags based on the flags value. '''
+
+    tcp_flags = []
+
+    if (flags & 0x01):
+        tcp_flags.append("FIN")
+    if (flags & 0x02):
+        tcp_flags.append("SYN")
+    if (flags & 0x04):
+        tcp_flags.append("RST")
+    if (flags & 0x08):
+        tcp_flags.append("PSH")
+    if (flags & 0x10):
+        tcp_flags.append("ACK")
+    if (flags & 0x20):
+        tcp_flags.append("URG")
+    if (flags & 0x40):
+        tcp_flags.append("ECE")
+    if (flags & 0x80):
+        tcp_flags.append("CWR")
+
+    return tcp_flags
+

@@ -4,17 +4,18 @@ import pandas as pd
 import logging
 import socket
 import datetime
-from helper import Packet, PacketType
+from helper import Packet, PacketType, get_tcp_flags
+from ast import literal_eval
 
 scapy.load_layer("tls")
 scapy.load_layer("http")
 scapy.load_layer("dns")
 
 # Constants
-ALERT_COLUMNS = ["TIME", "ALERT_TYPE", "SRC_IP", "DST_IP", "SRC_PORT", "DST_PORT", "PROTOCOL"]
+ALERT_COLUMNS = ["TIME", "ALERT_TYPE", "SRC_IP", "DST_IP", "PROTOCOL"]
 ALERT_THRESHOLD = 10
 
-PACKET_COLUMNS = ["TIME", "SRC_IP", "DST_IP", "SRC_PORT", "DST_PORT", "PROTOCOL", "INFO"]
+PACKET_COLUMNS = ["TIME", "SRC_IP", "DST_IP", "PROTOCOL", "INFO"]
 
 class IDS():
 
@@ -57,8 +58,9 @@ class IDS():
         try:
             self.alerts_df = pd.read_csv(self.alerts_path)
             self.packets_df = pd.read_csv(self.packets_path)
+            self.packets_df["INFO"] = self.packets_df["INFO"].apply(lambda x: literal_eval(x.strip()))
         except Exception as e:
-            print(f"[ERROR] Failed loading dataframes from csv path")
+            print(f"[ERROR] Failed loading dataframes from csv path: {e}")
 
 
     def check_alerts(self, packet) -> None:
@@ -94,32 +96,24 @@ class IDS():
     def process_packet(self, packet) -> None:
         ''' Process the packet and check for any alerts. '''
 
+        # packet.show()
+
         # fixed params
         time = datetime.datetime.now()
         sip = packet[IPv6].src if (IPv6 in packet) else packet[IP].src
         dip = packet[IPv6].dst if (IPv6 in packet) else packet[IP].dst
 
         # variable params 
-        protocol = None
-        src_port = None
-        dst_port = None
         p_type = None
 
         if (packet.haslayer(scapy.TCP)):
-            protocol = "TCP"
             p_type = PacketType.TCP
-            src_port = packet[scapy.TCP].sport
-            dst_port = packet[scapy.TCP].dport
+            print(get_tcp_flags(packet[TCP].flags))
         elif (packet.haslayer(scapy.UDP)):
-            protocol = "UDP"
             p_type = PacketType.UDP
-            src_port = packet[scapy.UDP].sport
-            dst_port = packet[scapy.UDP].dport
         elif (packet.haslayer(scapy.ICMP)):
-            protocol = "ICMP"
             p_type = PacketType.ICMP
         elif (packet.haslayer(scapy.DNS)):
-            protocol = "DNS"
             p_type = PacketType.DNS
         
         ids_packet = Packet(type=p_type, packet=packet)
@@ -128,8 +122,8 @@ class IDS():
             logging.info(f"Failed to initialize packet for {sip} -> {dip}") 
             return
         
-        logging.info(f"Packet: {sip} -> {dip} | Protocol: {protocol}")
-        self.packets_df.loc[len(self.packets_df), PACKET_COLUMNS] = [time, sip, dip, src_port, dst_port, protocol, ids_packet.packet]
+        logging.info(f"Packet: {sip} -> {dip} | Protocol: {p_type}")
+        self.packets_df.loc[len(self.packets_df), PACKET_COLUMNS] = [time, sip, dip, p_type.value, ids_packet.packet]
 
         # Add the packet to the list of packets
         # self.packets_df = pd.concat([self.packets_df, pd.DataFrame([packet], columns=PACKET_COLUMNS)], ignore_index=True)
@@ -152,4 +146,5 @@ if __name__ == "__main__":
     ids.sniff_packets()
     # print(ids.packets_df)
     ids.save_dfs()
+    ids.load_dfs()
 
