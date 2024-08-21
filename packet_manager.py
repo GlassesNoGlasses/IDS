@@ -1,80 +1,39 @@
 
-from helper import PROTOCOL_MAP, PROTOCOLS
+from constants import PROTOCOLS, PACKET_COLUMNS
 from ipaddress import ip_address
-
-''' Manager Structure:
-ip1: {
-    'inbound': {
-        'TCP': {
-            'packets': [],
-            'count': 0
-        },
-    },
-    'outbound': {
-        'TCP': {
-            'packets': [],
-            'count': 0
-        },
-    }
-}
-'''
+from pandas import DataFrame
 
 class PacketManager():
 
-    def __init__(self, protocols: list[str] = PROTOCOLS) -> None:
+    def __init__(self, file_path: str, protocols: list[str] = PROTOCOLS) -> None:
         ''' Initialize the packet manager. '''
+
+        self.file_path = file_path # defaults to ./logs/packets/
 
         # List of protocols to be loaded
         self.protocols = protocols
 
         # initialize manager
-        self.manager = {}
+        self.tcp_packets = DataFrame(columns=PACKET_COLUMNS)
+        self.udp_packets = DataFrame(columns=PACKET_COLUMNS)
+        self.icmp_packets = DataFrame(columns=PACKET_COLUMNS)
+        self.dns_packets = DataFrame(columns=PACKET_COLUMNS)
     
 
-    def initialize_ip(self, ip: str) -> None:
-        ''' Initialize IP address in the manager. '''
-
-        try:
-            # Check if IP is valid
-            ip_address(ip)
-            
-            # intialize IP in manager
-            self.manager[ip] = {
-                'inbound': {},
-                'outbound': {}
-            }
-
-            # Initialize protocols for IP inbound/outbound traffic
-            for protocol in self.protocols:
-                self.manager[ip]['inbound'][protocol] = {
-                    'packets': [],
-                    'count': 0
-                }
-                
-                self.manager[ip]['outbound'][protocol] = {
-                    'packets': [],
-                    'count': 0
-                }
-
-        except ValueError as e:
-            print(f"[ERROR] Invalid IP address: {e}")
-
-    
-    def load_packet(self, ip: str, protocol: int, info, inbound: bool = True) -> None:
+    def load_packets(self, df: DataFrame) -> None:
         ''' Load packet into the manager. '''
 
         try:
-            
-            # Check if IP exists in manager
-            if ip not in self.manager:
-                self.initialize_ip(ip=ip)
+            # fetch packets based on protocol
+            tcps = df[df['PROTOCOL'] == 6]
+            udps = df[df['PROTOCOL'] == 17]
+            icmps = df[df['PROTOCOL'] == 1]
+            dns = df[df['PROTOCOL'] == 53]
 
-            # Load packet into manager
-            protocol = PROTOCOL_MAP[protocol]
-
-            manager = self.manager[ip]['inbound'] if inbound else self.manager[ip]['outbound']
-            manager[protocol]['packets'].append(info)
-            manager[protocol]['count'] += 1
-
+            # append packets to respective dataframes
+            self.tcp_packets = self.tcp_packets.append(tcps, ignore_index=True)
+            self.udp_packets = self.udp_packets.append(udps, ignore_index=True)
+            self.icmp_packets = self.icmp_packets.append(icmps, ignore_index=True)
+            self.dns_packets = self.dns_packets.append(dns, ignore_index=True)
         except Exception as e:
             print(f"[ERROR] Failed loading packet into manager: {e}")
