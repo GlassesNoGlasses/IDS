@@ -3,6 +3,16 @@ from enum import Enum
 from scapy.all import UDP, TCP, ICMP, DNS
 
 
+# ----------------- Constants ----------------- #
+PROTOCOLS = ["TCP", "UDP", "ICMP", "DNS"]
+
+PROTOCOL_MAP = {
+    6: "TCP",
+    17: "UDP",
+    1: "ICMP",
+    53: "DNS",
+}
+
 # ----------------- Packet Classes ----------------- #
 class PacketType(Enum):
     TCP = 6

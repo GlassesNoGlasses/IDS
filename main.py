@@ -5,6 +5,7 @@ import logging
 import socket
 import datetime
 from helper import Packet, PacketType, get_tcp_flags
+from packet_manager import PacketManager
 from ast import literal_eval
 
 scapy.load_layer("tls")
@@ -33,6 +34,7 @@ class IDS():
         self.alert_count = 0 # Number of alerts
         self.alerts_df = pd.DataFrame(columns=ALERT_COLUMNS)
         self.packets_df = pd.DataFrame(columns=PACKET_COLUMNS)
+        self.manager = PacketManager()
 
     
     def get_host_ip(self) -> str:
