@@ -4,7 +4,8 @@ import pandas as pd
 import logging
 import socket
 import datetime
-from helper import Packet, PacketType, get_tcp_flags
+import os
+from helper import Packet, PacketType
 from packet_manager import PacketManager
 from constants import ALERT_COLUMNS, PACKET_COLUMNS, ALERT_THRESHOLD
 from ast import literal_eval
@@ -37,7 +38,7 @@ class IDS():
         self.alert_count = 0 # Number of alerts
         self.alerts_df = pd.DataFrame(columns=ALERT_COLUMNS)
         self.packets_df = pd.DataFrame(columns=PACKET_COLUMNS)
-        self.manager = PacketManager(file_path=packets_path)
+        self.manager = PacketManager(src_ip=self.host_ip, file_path=packets_path)
         self.packet_count = 0
 
     
@@ -77,8 +78,10 @@ class IDS():
         try:
             self.alerts_df = pd.read_csv(self.alerts_path)
             self.packets_df = pd.read_csv(self.packets_path + "packets.csv")
-            self.packets_df["PROTOCOL"] = self.packets_df["PROTOCOL"].apply(lambda x: int(x.strip()))
+            self.packets_df["TIME"] = self.packets_df["TIME"].apply(lambda x: datetime.datetime.strptime(x, "%Y-%m-%d %H:%M:%S"))
+            self.packets_df["PROTOCOL"] = self.packets_df["PROTOCOL"].apply(lambda x: int(x))
             self.packets_df["INFO"] = self.packets_df["INFO"].apply(lambda x: literal_eval(x.strip()))
+            self.packets_df["INFO"].apply(lambda x: print(x['flags']))
         except Exception as e:
             print(f"[ERROR] Failed loading dataframes from csv path: {e}")
 
@@ -116,14 +119,13 @@ class IDS():
     def process_packet(self, packet) -> None:
         ''' Process the packet and check for any alerts. '''
 
-        # packet.show()
+        packet.summary()
 
         # variable params 
         p_type = None
 
         if (packet.haslayer(scapy.TCP)):
             p_type = PacketType.TCP
-            print(get_tcp_flags(packet[TCP].flags))
         elif (packet.haslayer(scapy.UDP)):
             p_type = PacketType.UDP
         elif (packet.haslayer(scapy.ICMP)):
@@ -134,10 +136,9 @@ class IDS():
         ids_packet = Packet(type=p_type, packet=packet)
 
         if (not ids_packet.packet):
-            logging.info(f"Failed to initialize packet for {sip} -> {dip}") 
+            logging.error(f"Failed to initialize packet for {sip} -> {dip}") 
             return
         
-        # fixed params
         date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         sip = packet[IPv6].src if (IPv6 in packet) else packet[IP].src
         dip = packet[IPv6].dst if (IPv6 in packet) else packet[IP].dst
@@ -146,31 +147,44 @@ class IDS():
         self.packets_df.loc[len(self.packets_df), PACKET_COLUMNS] = [date, sip, dip, p_type.value, ids_packet.packet]
         self.packet_count += 1
 
+        # load packets into manager and process them
         if self.packet_count >= 20:
             self.manager.load_packets(df=self.packets_df)
             self.save_all_dfs()
+            self.manager.process_packets()
             self.packet_count = 0
+        
+        
 
-        # Add the packet to the list of packets
-        # self.packets_df = pd.concat([self.packets_df, pd.DataFrame([packet], columns=PACKET_COLUMNS)], ignore_index=True)
 
-        # Check for alerts
-        # self.check_alerts(packet)
-    
 
     def sniff_packets(self):
+        ''' Sniff packets and process them. '''
         scapy.sniff(lfilter=self.packet_filter, prn=self.process_packet, store=False, count=20)
 
 
 if __name__ == "__main__":
+    # reset the log file
     with open("./logs/ids_info.log", "w"):
         pass
+
+    # initialize the logger
     logging.basicConfig(filename="./logs/ids_info.log", level=logging.INFO)
     logging.info("Starting the program")
-    ids = IDS()
-    print(ids.host_ip)
+
+    alerts_path = "./logs/alerts.csv"
+    packets_path = "./logs/packets/"
+
+    # make required paths
+    if not os.path.exists(alerts_path):
+        os.makedirs(alerts_path)
+    
+    if not os.path.exists(packets_path):
+        os.makedirs(packets_path)
+
+    ids = IDS(alerts_path=alerts_path, packets_path=packets_path)
+    print(f"[EVENT] HOST IP: {ids.host_ip}")
     ids.sniff_packets()
-    # print(ids.packets_df)
     ids.save_all_dfs()
     ids.load_dfs()
 
