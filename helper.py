@@ -71,7 +71,6 @@ class Packet():
         return {
             'type': packet[ICMP].type,
             'code': packet[ICMP].code,
-            'chksum': packet[ICMP].chksum,
         }
     
 

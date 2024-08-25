@@ -1,7 +1,6 @@
 
 from datetime import datetime, timedelta
-from constants import PROTOCOLS, TCP_COLUMNS, PACKET_COLUMNS
-from ipaddress import ip_address
+from constants import PROTOCOLS, COLUMNS
 from pandas import DataFrame, concat
 
 class PacketManager():
@@ -16,10 +15,10 @@ class PacketManager():
         self.protocols = protocols
 
         # initialize manager
-        self.tcp_packets = DataFrame(columns=TCP_COLUMNS)
-        self.udp_packets = DataFrame(columns=PACKET_COLUMNS)
-        self.icmp_packets = DataFrame(columns=PACKET_COLUMNS)
-        self.dns_packets = DataFrame(columns=PACKET_COLUMNS)
+        self.tcp_packets = DataFrame(columns=COLUMNS['TCP'])
+        self.udp_packets = DataFrame(columns=COLUMNS['PACKET'])
+        self.icmp_packets = DataFrame(columns=COLUMNS['ICMP'])
+        self.dns_packets = DataFrame(columns=COLUMNS['PACKET'])
     
 
     def load_packets(self, df: DataFrame) -> None:
@@ -29,19 +28,13 @@ class PacketManager():
             # fetch packets based on protocol
 
             # TCP packets
-            tcps = df[df['PROTOCOL'] == 6]
-            tcps.loc[:, 'SPORT'] = tcps['INFO'].apply(lambda x: x['sport'])
-            tcps.loc[:, 'DPORT'] = tcps['INFO'].apply(lambda x: x['dport'])
-            tcps.loc[:, 'SYN'] = tcps['INFO'].apply(lambda x: 1 if 'SYN' in x['flags'] else 0)
-            tcps.loc[:, 'ACK'] = tcps['INFO'].apply(lambda x: 1 if 'ACK' in x['flags'] else 0)
-            tcps.loc[:, 'PSH'] = tcps['INFO'].apply(lambda x: 1 if 'PSH' in x['flags'] else 0)
-            tcps.loc[:, 'FIN'] = tcps['INFO'].apply(lambda x: 1 if 'FIN' in x['flags'] else 0)
-            tcps.loc[:, 'SEQ_NUM'] = tcps['INFO'].apply(lambda x: x['seq'])
-            tcps.loc[:, 'ACK_NUM'] = tcps['INFO'].apply(lambda x: x['ack'])
-            tcps.drop(columns=['INFO', 'PROTOCOL'], inplace=True)
+            tcps = self.load_tcp_packets(df)
 
+            # UDP packets
             udps = df[df['PROTOCOL'] == 17]
-            icmps = df[df['PROTOCOL'] == 1]
+
+            # ICMP packets
+            icmps = self.load_icmp_packets(df)
             dns = df[df['PROTOCOL'] == 53]
 
             # append packets to respective dataframes
@@ -53,14 +46,34 @@ class PacketManager():
             print(f"[ERROR] Failed loading packet into manager: {e}")
     
 
-    def process_packets(self) -> None:
-        ''' Process packets in the manager. '''
+    def load_icmp_packets(self, df: DataFrame) -> None:
+        ''' Load ICMP packets into the manager. '''
 
-        # process packets based on protocol
-        self.process_tcp_packets()
-        self.process_udp_packets()
-        self.process_icmp_packets()
-        self.process_dns_packets()
+        icmps = df[df['PROTOCOL'] == 1]
+
+        icmps.loc[:, 'TYPE'] = icmps['INFO'].apply(lambda x: x['type'])
+        icmps.loc[:, 'CODE'] = icmps['INFO'].apply(lambda x: x['code'])
+        icmps.drop(columns=['INFO', 'PROTOCOL'], inplace=True)
+
+        return icmps
+
+
+    def load_tcp_packets(self, df: DataFrame) -> None:
+        ''' Load TCP packets into the manager. '''
+
+        tcps = df[df['PROTOCOL'] == 6]
+
+        tcps.loc[:, 'SPORT'] = tcps['INFO'].apply(lambda x: x['sport'])
+        tcps.loc[:, 'DPORT'] = tcps['INFO'].apply(lambda x: x['dport'])
+        tcps.loc[:, 'SYN'] = tcps['INFO'].apply(lambda x: 1 if 'SYN' in x['flags'] else 0)
+        tcps.loc[:, 'ACK'] = tcps['INFO'].apply(lambda x: 1 if 'ACK' in x['flags'] else 0)
+        tcps.loc[:, 'PSH'] = tcps['INFO'].apply(lambda x: 1 if 'PSH' in x['flags'] else 0)
+        tcps.loc[:, 'FIN'] = tcps['INFO'].apply(lambda x: 1 if 'FIN' in x['flags'] else 0)
+        tcps.loc[:, 'SEQ_NUM'] = tcps['INFO'].apply(lambda x: x['seq'])
+        tcps.loc[:, 'ACK_NUM'] = tcps['INFO'].apply(lambda x: x['ack'])
+        tcps.drop(columns=['INFO', 'PROTOCOL'], inplace=True)
+
+        return tcps
     
 
     def check_syn_flood(self) -> None:
@@ -86,7 +99,36 @@ class PacketManager():
                 print(f"[ALERT] SYN flood attack detected: {syn_packets.shape[0]} SYN packets in {TIME_WINDOW} seconds.")
         except Exception as e:
             print(f"[ERROR] Failed checking SYN flood attack: {e}")
+        
+    
+    def check_ping_flood(self) -> None:
+        ''' Check for ping flood attacks in ICMP packets. self.icmp_packets must not be empty. '''
 
+        PING_THRESHOLD = 100 # 100 ICMP packets
+
+        try:
+            # fetch ICMP packets
+            icmp_packets = self.icmp_packets.loc[(self.icmp_packets['DST_IP'] == self.src_ip) & (self.icmp_packets['TYPE'] == 8)]
+
+            if icmp_packets.empty:
+                print("[INFO] No ICMP packets found.")
+                return
+            
+            # check if ICMP packets exceed threshold
+            if icmp_packets.shape[0] >= PING_THRESHOLD:
+                print(f"[ALERT] Ping flood attack detected: {icmp_packets.shape[0]} ICMP packets.")
+        except Exception as e:
+            print(f"[ERROR] Failed checking ping flood attack: {e}")
+
+    
+    def process_packets(self) -> None:
+        ''' Process packets in the manager. '''
+
+        # process packets based on protocol
+        self.process_tcp_packets()
+        self.process_udp_packets()
+        self.process_icmp_packets()
+        self.process_dns_packets()
     
 
     def process_tcp_packets(self) -> None:

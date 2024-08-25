@@ -7,7 +7,7 @@ import datetime
 import os
 from helper import Packet, PacketType
 from packet_manager import PacketManager
-from constants import ALERT_COLUMNS, PACKET_COLUMNS, ALERT_THRESHOLD, TCP_COLUMNS
+from constants import COLUMNS, ALERT_THRESHOLD
 from ast import literal_eval
 
 scapy.load_layer("tls")
@@ -36,8 +36,8 @@ class IDS():
 
         # Packet configs/storage
         self.alert_count = 0 # Number of alerts
-        self.alerts_df = pd.DataFrame(columns=ALERT_COLUMNS)
-        self.packets_df = pd.DataFrame(columns=PACKET_COLUMNS)
+        self.alerts_df = pd.DataFrame(columns=COLUMNS['ALERT'])
+        self.packets_df = pd.DataFrame(columns=COLUMNS['PACKET'])
         self.manager = PacketManager(src_ip=self.host_ip, file_path=packets_path)
         self.packet_count = 0
 
@@ -62,14 +62,14 @@ class IDS():
         ''' Save all packet and alert dataframes to their respective paths. '''
 
         # IDS dataframes
-        self.save_df(df=self.alerts_df, path=self.alerts_path, columns=ALERT_COLUMNS)
-        self.save_df(df=self.packets_df, path=self.packets_path + "packets.csv", columns=PACKET_COLUMNS)
+        self.save_df(df=self.alerts_df, path=self.alerts_path, columns=COLUMNS['ALERT'])
+        self.save_df(df=self.packets_df, path=self.packets_path + "packets.csv", columns=COLUMNS['PACKET'])
 
         # Packet manager dataframes
-        self.save_df(df=self.manager.tcp_packets, path=self.packets_path + "tcp_packets.csv", columns=TCP_COLUMNS)
-        self.save_df(df=self.manager.udp_packets, path=self.packets_path + "udp_packets.csv", columns=PACKET_COLUMNS)
-        self.save_df(df=self.manager.icmp_packets, path=self.packets_path + "icmp_packets.csv", columns=PACKET_COLUMNS)
-        self.save_df(df=self.manager.dns_packets, path=self.packets_path + "dns_packets.csv", columns=PACKET_COLUMNS)
+        self.save_df(df=self.manager.tcp_packets, path=self.packets_path + "tcp_packets.csv", columns=COLUMNS['TCP'])
+        self.save_df(df=self.manager.udp_packets, path=self.packets_path + "udp_packets.csv", columns=COLUMNS['PACKET'])
+        self.save_df(df=self.manager.icmp_packets, path=self.packets_path + "icmp_packets.csv", columns=COLUMNS['ICMP'])
+        self.save_df(df=self.manager.dns_packets, path=self.packets_path + "dns_packets.csv", columns=COLUMNS['PACKET'])
 
 
     def load_dfs(self) -> None:
@@ -117,7 +117,7 @@ class IDS():
     def process_packet(self, packet) -> None:
         ''' Process the packet and check for any alerts. '''
 
-        packet.summary()
+        packet.show()
 
         # variable params 
         p_type = None
@@ -142,7 +142,7 @@ class IDS():
         dip = packet[IPv6].dst if (IPv6 in packet) else packet[IP].dst
 
         logging.info(f"Packet: {sip} -> {dip} | Protocol: {p_type}")
-        self.packets_df.loc[len(self.packets_df), PACKET_COLUMNS] = [date, sip, dip, p_type.value, ids_packet.packet]
+        self.packets_df.loc[len(self.packets_df), COLUMNS['PACKET']] = [date, sip, dip, p_type.value, ids_packet.packet]
         self.packet_count += 1
 
         # load packets into manager and process them
