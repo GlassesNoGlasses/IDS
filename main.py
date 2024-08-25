@@ -7,7 +7,7 @@ import datetime
 import os
 from helper import Packet, PacketType
 from packet_manager import PacketManager
-from constants import ALERT_COLUMNS, PACKET_COLUMNS, ALERT_THRESHOLD
+from constants import ALERT_COLUMNS, PACKET_COLUMNS, ALERT_THRESHOLD, TCP_COLUMNS
 from ast import literal_eval
 
 scapy.load_layer("tls")
@@ -66,7 +66,7 @@ class IDS():
         self.save_df(df=self.packets_df, path=self.packets_path + "packets.csv", columns=PACKET_COLUMNS)
 
         # Packet manager dataframes
-        self.save_df(df=self.manager.tcp_packets, path=self.packets_path + "tcp_packets.csv", columns=PACKET_COLUMNS)
+        self.save_df(df=self.manager.tcp_packets, path=self.packets_path + "tcp_packets.csv", columns=TCP_COLUMNS)
         self.save_df(df=self.manager.udp_packets, path=self.packets_path + "udp_packets.csv", columns=PACKET_COLUMNS)
         self.save_df(df=self.manager.icmp_packets, path=self.packets_path + "icmp_packets.csv", columns=PACKET_COLUMNS)
         self.save_df(df=self.manager.dns_packets, path=self.packets_path + "dns_packets.csv", columns=PACKET_COLUMNS)
@@ -78,10 +78,8 @@ class IDS():
         try:
             self.alerts_df = pd.read_csv(self.alerts_path)
             self.packets_df = pd.read_csv(self.packets_path + "packets.csv")
-            self.packets_df["TIME"] = self.packets_df["TIME"].apply(lambda x: datetime.datetime.strptime(x, "%Y-%m-%d %H:%M:%S"))
             self.packets_df["PROTOCOL"] = self.packets_df["PROTOCOL"].apply(lambda x: int(x))
             self.packets_df["INFO"] = self.packets_df["INFO"].apply(lambda x: literal_eval(x.strip()))
-            self.packets_df["INFO"].apply(lambda x: print(x['flags']))
         except Exception as e:
             print(f"[ERROR] Failed loading dataframes from csv path: {e}")
 
@@ -154,9 +152,6 @@ class IDS():
             self.manager.process_packets()
             self.packet_count = 0
         
-        
-
-
 
     def sniff_packets(self):
         ''' Sniff packets and process them. '''

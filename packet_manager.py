@@ -1,5 +1,6 @@
 
-from constants import PROTOCOLS, PACKET_COLUMNS
+from datetime import datetime, timedelta
+from constants import PROTOCOLS, TCP_COLUMNS, PACKET_COLUMNS
 from ipaddress import ip_address
 from pandas import DataFrame, concat
 
@@ -15,7 +16,7 @@ class PacketManager():
         self.protocols = protocols
 
         # initialize manager
-        self.tcp_packets = DataFrame(columns=PACKET_COLUMNS)
+        self.tcp_packets = DataFrame(columns=TCP_COLUMNS)
         self.udp_packets = DataFrame(columns=PACKET_COLUMNS)
         self.icmp_packets = DataFrame(columns=PACKET_COLUMNS)
         self.dns_packets = DataFrame(columns=PACKET_COLUMNS)
@@ -26,7 +27,19 @@ class PacketManager():
 
         try:
             # fetch packets based on protocol
+
+            # TCP packets
             tcps = df[df['PROTOCOL'] == 6]
+            tcps.loc[:, 'SPORT'] = tcps['INFO'].apply(lambda x: x['sport'])
+            tcps.loc[:, 'DPORT'] = tcps['INFO'].apply(lambda x: x['dport'])
+            tcps.loc[:, 'SYN'] = tcps['INFO'].apply(lambda x: 1 if 'SYN' in x['flags'] else 0)
+            tcps.loc[:, 'ACK'] = tcps['INFO'].apply(lambda x: 1 if 'ACK' in x['flags'] else 0)
+            tcps.loc[:, 'PSH'] = tcps['INFO'].apply(lambda x: 1 if 'PSH' in x['flags'] else 0)
+            tcps.loc[:, 'FIN'] = tcps['INFO'].apply(lambda x: 1 if 'FIN' in x['flags'] else 0)
+            tcps.loc[:, 'SEQ_NUM'] = tcps['INFO'].apply(lambda x: x['seq'])
+            tcps.loc[:, 'ACK_NUM'] = tcps['INFO'].apply(lambda x: x['ack'])
+            tcps.drop(columns=['INFO', 'PROTOCOL'], inplace=True)
+
             udps = df[df['PROTOCOL'] == 17]
             icmps = df[df['PROTOCOL'] == 1]
             dns = df[df['PROTOCOL'] == 53]
@@ -58,11 +71,15 @@ class PacketManager():
 
         try:
             # fetch SYN packets
-            print(self.tcp_packets)
-            syn_packets = self.tcp_packets.loc[(self.tcp_packets['DST_IP'] == self.src_ip) & (self.tcp_packets['INFO'].isin(['SYN']))]
-            print("SYN PACKETS BEFORE TIME: ", syn_packets)
-            syn_packets = syn_packets[syn_packets['TIME'] >= syn_packets['TIME'].max() - TIME_WINDOW]
-            print("SYN PACKETS AFTER TIME: ", syn_packets)
+            syn_packets = self.tcp_packets.loc[(self.tcp_packets['DST_IP'] == self.src_ip) & (self.tcp_packets['SYN'] == 1)]
+
+            if syn_packets.empty:
+                print("[INFO] No SYN packets found.")
+                return
+            
+            syn_packets.loc[:, 'TIME'] = syn_packets['TIME'].apply(lambda x: datetime.strptime(x, '%Y-%m-%d %H:%M:%S'))
+            most_recent = max(syn_packets['TIME'])
+            syn_packets = syn_packets[syn_packets['TIME'] >= most_recent - timedelta(seconds=TIME_WINDOW)]
 
             # check if SYN packets exceed threshold
             if syn_packets.shape[0] >= SYN_THRESHOLD:
