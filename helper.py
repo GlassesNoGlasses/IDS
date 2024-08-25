@@ -2,7 +2,6 @@
 from enum import Enum
 from scapy.all import UDP, TCP, ICMP, DNS
 
-
 # ----------------- Packet Classes ----------------- #
 class PacketType(Enum):
     TCP = 6
@@ -72,7 +71,6 @@ class Packet():
         return {
             'type': packet[ICMP].type,
             'code': packet[ICMP].code,
-            'chksum': packet[ICMP].chksum,
         }
     
 
