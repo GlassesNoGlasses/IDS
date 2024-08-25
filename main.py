@@ -117,7 +117,7 @@ class IDS():
     def process_packet(self, packet) -> None:
         ''' Process the packet and check for any alerts. '''
 
-        packet.show()
+        # packet.show()
 
         # variable params 
         p_type = None
@@ -141,7 +141,7 @@ class IDS():
         sip = packet[IPv6].src if (IPv6 in packet) else packet[IP].src
         dip = packet[IPv6].dst if (IPv6 in packet) else packet[IP].dst
 
-        logging.info(f"Packet: {sip} -> {dip} | Protocol: {p_type}")
+        logging.info(f"Packet: {sip} -> {dip} | Protocol: {p_type.value}")
         self.packets_df.loc[len(self.packets_df), COLUMNS['PACKET']] = [date, sip, dip, p_type.value, ids_packet.packet]
         self.packet_count += 1
 
@@ -159,13 +159,6 @@ class IDS():
 
 
 if __name__ == "__main__":
-    # reset the log file
-    with open("./logs/ids_info.log", "w"):
-        pass
-
-    # initialize the logger
-    logging.basicConfig(filename="./logs/ids_info.log", level=logging.INFO)
-    logging.info("Starting the program")
 
     alerts_path = "./logs/alerts.csv"
     packets_path = "./logs/packets/"
@@ -176,6 +169,17 @@ if __name__ == "__main__":
     
     if not os.path.exists(packets_path):
         os.makedirs(packets_path)
+    
+    # reset the log files
+    with open("./logs/ids_info.log", "w"):
+        pass
+
+    with open("./logs/packet_manager_logs.log", "w"):
+        pass
+
+    # initialize the logger
+    logging.basicConfig(filename="./logs/ids_info.log", level=logging.INFO)
+    logging.info("Starting the program")
 
     ids = IDS(alerts_path=alerts_path, packets_path=packets_path)
     print(f"[EVENT] HOST IP: {ids.host_ip}")

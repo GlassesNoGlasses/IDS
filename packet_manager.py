@@ -1,14 +1,17 @@
 
+import logging
 from datetime import datetime, timedelta
 from constants import PROTOCOLS, COLUMNS
 from pandas import DataFrame, concat
 
 class PacketManager():
 
-    def __init__(self, src_ip: str, file_path: str, protocols: list[str] = PROTOCOLS) -> None:
+    def __init__(self, src_ip: str, file_path: str, protocols: list[str] = PROTOCOLS, 
+                 log_path = './logs/packet_manager_logs.log') -> None:
         ''' Initialize the packet manager. '''
 
         self.file_path = file_path # defaults to ./logs/packets/
+        self.log_path = log_path # defaults to ./logs/packet_manager_logs.log
         self.src_ip = src_ip
 
         # List of protocols to be loaded
@@ -19,6 +22,9 @@ class PacketManager():
         self.udp_packets = DataFrame(columns=COLUMNS['PACKET'])
         self.icmp_packets = DataFrame(columns=COLUMNS['ICMP'])
         self.dns_packets = DataFrame(columns=COLUMNS['PACKET'])
+
+        # logging
+        logging.basicConfig(filename=self.log_path, level=logging.INFO)
     
 
     def load_packets(self, df: DataFrame) -> None:
@@ -84,10 +90,11 @@ class PacketManager():
 
         try:
             # fetch SYN packets
+            print("CHECKING SYN FLOOD")
             syn_packets = self.tcp_packets.loc[(self.tcp_packets['DST_IP'] == self.src_ip) & (self.tcp_packets['SYN'] == 1)]
 
             if syn_packets.empty:
-                print("[INFO] No SYN packets found.")
+                logging.info("[SYN FLOOD] No SYN packets found.")
                 return
             
             syn_packets.loc[:, 'TIME'] = syn_packets['TIME'].apply(lambda x: datetime.strptime(x, '%Y-%m-%d %H:%M:%S'))
@@ -96,7 +103,7 @@ class PacketManager():
 
             # check if SYN packets exceed threshold
             if syn_packets.shape[0] >= SYN_THRESHOLD:
-                print(f"[ALERT] SYN flood attack detected: {syn_packets.shape[0]} SYN packets in {TIME_WINDOW} seconds.")
+                logging.info(f"[ALERT] SYN flood attack detected: {syn_packets.shape[0]} SYN packets in {TIME_WINDOW} seconds.")
         except Exception as e:
             print(f"[ERROR] Failed checking SYN flood attack: {e}")
         
@@ -111,12 +118,12 @@ class PacketManager():
             icmp_packets = self.icmp_packets.loc[(self.icmp_packets['DST_IP'] == self.src_ip) & (self.icmp_packets['TYPE'] == 8)]
 
             if icmp_packets.empty:
-                print("[INFO] No ICMP packets found.")
+                logging.info("[PING FLOOD] No ICMP packets found.")
                 return
             
             # check if ICMP packets exceed threshold
             if icmp_packets.shape[0] >= PING_THRESHOLD:
-                print(f"[ALERT] Ping flood attack detected: {icmp_packets.shape[0]} ICMP packets.")
+                logging.info(f"[ALERT] Ping flood attack detected: {icmp_packets.shape[0]} ICMP packets.")
         except Exception as e:
             print(f"[ERROR] Failed checking ping flood attack: {e}")
 
@@ -157,7 +164,8 @@ class PacketManager():
         # check if there are any packets to process
         if self.icmp_packets.empty:
             return
-        pass
+        
+        self.process_icmp_packets()
 
     
     def process_dns_packets(self) -> None:
